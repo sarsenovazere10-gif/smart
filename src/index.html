@@ -1,0 +1,1109 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>SmartQ — Интеллектуальное управление очередями (Актау)</title>
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Leaflet CSS -->
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin=""/>
+    <!-- Chart.js -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <!-- FontAwesome -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <!-- Google Fonts -->
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    colors: {
+                        brand: {
+                            50: '#eef6ff',
+                            100: '#d9eaff',
+                            500: '#0066cc',
+                            600: '#0052a3',
+                            700: '#003d7a',
+                        },
+                        turquoise: {
+                            500: '#00b4d8',
+                            600: '#0096b4',
+                        }
+                    },
+                    fontFamily: {
+                        sans: ['Inter', 'sans-serif'],
+                    }
+                }
+            }
+        }
+    </script>
+    <style>
+        .leaflet-container {
+            width: 100%;
+            height: 100%;
+            border-radius: 0.75rem;
+            z-index: 10;
+        }
+        ::-webkit-scrollbar {
+            width: 6px;
+            height: 6px;
+        }
+        ::-webkit-scrollbar-track {
+            background: #f1f5f9;
+        }
+        ::-webkit-scrollbar-thumb {
+            background: #cbd5e1;
+            border-radius: 3px;
+        }
+        ::-webkit-scrollbar-thumb:hover {
+            background: #94a3b8;
+        }
+    </style>
+</head>
+<body class="bg-slate-50 font-sans text-slate-800 antialiased min-h-screen flex flex-col">
+
+    <!-- TOP HEADER / DEMO BANNER -->
+    <div class="bg-gradient-to-r from-brand-700 via-brand-600 to-turquoise-600 text-white text-xs sm:text-sm py-2 px-4 shadow-sm flex flex-wrap justify-between items-center z-30">
+        <div class="flex items-center space-x-2">
+            <span class="bg-amber-400 text-slate-900 font-bold px-2 py-0.5 rounded text-xs uppercase tracking-wider">Demo Mode</span>
+            <span>SmartQ Актау — Интеллектуальный прототип онкоскрининга</span>
+        </div>
+        <div class="flex items-center space-x-2 sm:space-x-4 mt-1 sm:mt-0">
+            <button onclick="switchRole('patient')" id="btnRolePatient" class="bg-white/25 hover:bg-white/30 px-3 py-1 rounded font-medium transition">Режим пациента</button>
+            <button onclick="switchRole('admin')" id="btnRoleAdmin" class="bg-transparent hover:bg-white/20 px-3 py-1 rounded font-medium transition">Панель клиники</button>
+            <button onclick="switchRole('city')" id="btnRoleCity" class="bg-transparent hover:bg-white/20 px-3 py-1 rounded font-medium transition">Минздрав / Город</button>
+        </div>
+    </div>
+
+    <!-- MAIN APP CONTAINER -->
+    <div class="flex flex-1 overflow-hidden relative">
+
+        <!-- SIDEBAR (Desktop) -->
+        <aside id="sidebar" class="hidden md:flex flex-col w-64 bg-white border-r border-slate-200 z-20 shadow-sm">
+            <div class="p-5 flex items-center space-x-3 border-b border-slate-100">
+                <div class="w-10 h-10 rounded-xl bg-gradient-to-tr from-brand-600 to-turquoise-500 flex items-center justify-center text-white font-bold text-xl shadow-md">
+                    <i class="fa-solid fa-q"></i>
+                </div>
+                <div>
+                    <h1 class="font-bold text-lg leading-tight text-slate-900">SmartQ</h1>
+                    <p class="text-xs text-slate-500">Онкоскрининг Актау</p>
+                </div>
+            </div>
+
+            <!-- Navigation Links (Patient) -->
+            <nav id="navPatient" class="flex-1 p-4 space-y-1 overflow-y-auto">
+                <a href="#" onclick="showSection('dashboard')" class="nav-link flex items-center space-x-3 px-3 py-2.5 rounded-lg text-sm font-medium text-brand-600 bg-brand-50" data-section="dashboard">
+                    <i class="fa-solid fa-chart-pie w-5"></i><span>Главная</span>
+                </a>
+                <a href="#" onclick="showSection('queue')" class="nav-link flex items-center space-x-3 px-3 py-2.5 rounded-lg text-sm font-medium text-slate-600 hover:bg-slate-100 transition" data-section="queue">
+                    <i class="fa-solid fa-users-line w-5"></i><span>Моя очередь</span>
+                </a>
+                <a href="#" onclick="showSection('map')" class="nav-link flex items-center space-x-3 px-3 py-2.5 rounded-lg text-sm font-medium text-slate-600 hover:bg-slate-100 transition" data-section="map">
+                    <i class="fa-solid fa-map-location-dot w-5"></i><span>Карта Актау</span>
+                </a>
+                <a href="#" onclick="showSection('forecast')" class="nav-link flex items-center space-x-3 px-3 py-2.5 rounded-lg text-sm font-medium text-slate-600 hover:bg-slate-100 transition" data-section="forecast">
+                    <i class="fa-solid fa-chart-line w-5"></i><span>Прогноз очереди</span>
+                </a>
+                <a href="#" onclick="showSection('compare')" class="nav-link flex items-center space-x-3 px-3 py-2.5 rounded-lg text-sm font-medium text-slate-600 hover:bg-slate-100 transition" data-section="compare">
+                    <i class="fa-solid fa-scale-balanced w-5"></i><span>Сравнение центров</span>
+                </a>
+                <a href="#" onclick="showSection('notifications')" class="nav-link flex items-center space-x-3 px-3 py-2.5 rounded-lg text-sm font-medium text-slate-600 hover:bg-slate-100 transition" data-section="notifications">
+                    <i class="fa-solid fa-bell w-5"></i><span>Уведомления <span class="ml-auto bg-rose-500 text-white text-xs px-1.5 py-0.5 rounded-full font-bold">2</span></span>
+                </a>
+                <a href="#" onclick="showSection('scenario')" class="nav-link flex items-center space-x-3 px-3 py-2.5 rounded-lg text-sm font-medium text-slate-600 hover:bg-slate-100 transition" data-section="scenario">
+                    <i class="fa-solid fa-play-circle w-5 text-amber-500"></i><span>Сценарий демо</span>
+                </a>
+                <a href="#" onclick="showSection('demo-info')" class="nav-link flex items-center space-x-3 px-3 py-2.5 rounded-lg text-sm font-medium text-slate-600 hover:bg-slate-100 transition" data-section="demo-info">
+                    <i class="fa-solid fa-circle-info w-5"></i><span>О системе / Demo</span>
+                </a>
+            </nav>
+
+            <!-- Navigation Links (Admin) -->
+            <nav id="navAdmin" class="flex-1 p-4 space-y-1 overflow-y-auto hidden">
+                <a href="#" onclick="showSection('admin-dash')" class="nav-link-admin flex items-center space-x-3 px-3 py-2.5 rounded-lg text-sm font-medium text-brand-600 bg-brand-50" data-section="admin-dash">
+                    <i class="fa-solid fa-gauge w-5"></i><span>Dashboard клиники</span>
+                </a>
+                <a href="#" onclick="showSection('admin-patients')" class="nav-link-admin flex items-center space-x-3 px-3 py-2.5 rounded-lg text-sm font-medium text-slate-600 hover:bg-slate-100" data-section="admin-patients">
+                    <i class="fa-solid fa-hospital-user w-5"></i><span>Управление приоритетами</span>
+                </a>
+                <a href="#" onclick="showSection('scenario')" class="nav-link-admin flex items-center space-x-3 px-3 py-2.5 rounded-lg text-sm font-medium text-slate-600 hover:bg-slate-100" data-section="scenario">
+                    <i class="fa-solid fa-play-circle w-5 text-amber-500"></i><span>Сценарий демо</span>
+                </a>
+            </nav>
+
+            <!-- Navigation Links (City) -->
+            <nav id="navCity" class="flex-1 p-4 space-y-1 overflow-y-auto hidden">
+                <a href="#" onclick="showSection('city-dash')" class="nav-link-city flex items-center space-x-3 px-3 py-2.5 rounded-lg text-sm font-medium text-brand-600 bg-brand-50" data-section="city-dash">
+                    <i class="fa-solid fa-city w-5"></i><span>Мониторинг Актау</span>
+                </a>
+                <a href="#" onclick="showSection('city-recs')" class="nav-link-city flex items-center space-x-3 px-3 py-2.5 rounded-lg text-sm font-medium text-slate-600 hover:bg-slate-100" data-section="city-recs">
+                    <i class="fa-solid fa-brain w-5"></i><span>Интеллектуальные рек.</span>
+                </a>
+                <a href="#" onclick="showSection('scenario')" class="nav-link-city flex items-center space-x-3 px-3 py-2.5 rounded-lg text-sm font-medium text-slate-600 hover:bg-slate-100" data-section="scenario">
+                    <i class="fa-solid fa-play-circle w-5 text-amber-500"></i><span>Сценарий демо</span>
+                </a>
+            </nav>
+
+            <!-- User Profile Footer -->
+            <div class="p-4 border-t border-slate-100 flex items-center space-x-3 bg-slate-50">
+                <div class="w-9 h-9 rounded-full bg-slate-300 flex items-center justify-center font-bold text-slate-700 text-xs">ЗС</div>
+                <div class="overflow-hidden">
+                    <p class="text-xs font-semibold text-slate-900 truncate">Сарсенбиғалиқызы З.</p>
+                    <p class="text-[10px] text-slate-500 truncate">ID: #9482 • Пациент</p>
+                </div>
+            </div>
+        </aside>
+
+        <!-- CONTENT AREA -->
+        <main class="flex-1 flex flex-col h-full overflow-hidden bg-slate-50">
+            
+            <!-- Mobile Header -->
+            <header class="md:hidden bg-white border-b border-slate-200 p-4 flex justify-between items-center z-20">
+                <div class="flex items-center space-x-2">
+                    <div class="w-8 h-8 rounded-lg bg-gradient-to-tr from-brand-600 to-turquoise-500 flex items-center justify-center text-white font-bold text-sm">
+                        <i class="fa-solid fa-q"></i>
+                    </div>
+                    <span class="font-bold text-slate-900">SmartQ Актау</span>
+                </div>
+                <button onclick="toggleMobileMenu()" class="text-slate-600 focus:outline-none p-1">
+                    <i class="fa-solid fa-bars text-xl"></i>
+                </button>
+            </header>
+
+            <!-- Mobile Menu Modal -->
+            <div id="mobileMenu" class="hidden absolute inset-0 bg-white z-50 flex flex-col p-5 md:hidden overflow-y-auto">
+                <div class="flex justify-between items-center mb-6 border-b pb-4">
+                    <span class="font-bold text-lg text-slate-900">Меню SmartQ</span>
+                    <button onclick="toggleMobileMenu()" class="text-slate-500 text-xl font-bold p-2"><i class="fa-solid fa-xmark"></i></button>
+                </div>
+                <div class="space-y-2 flex-1">
+                    <p class="text-xs font-bold text-slate-400 uppercase tracking-wider mb-2">Навигация</p>
+                    <a href="#" onclick="showSection('dashboard'); toggleMobileMenu();" class="block p-3 rounded-lg bg-slate-100 font-medium text-sm">Главная dashboard</a>
+                    <a href="#" onclick="showSection('queue'); toggleMobileMenu();" class="block p-3 rounded-lg bg-slate-100 font-medium text-sm">Моя очередь</a>
+                    <a href="#" onclick="showSection('map'); toggleMobileMenu();" class="block p-3 rounded-lg bg-slate-100 font-medium text-sm">Карта Актау</a>
+                    <a href="#" onclick="showSection('forecast'); toggleMobileMenu();" class="block p-3 rounded-lg bg-slate-100 font-medium text-sm">Прогноз очереди</a>
+                    <a href="#" onclick="showSection('compare'); toggleMobileMenu();" class="block p-3 rounded-lg bg-slate-100 font-medium text-sm">Сравнение центров</a>
+                    <a href="#" onclick="showSection('notifications'); toggleMobileMenu();" class="block p-3 rounded-lg bg-slate-100 font-medium text-sm">Уведомления</a>
+                    <a href="#" onclick="showSection('scenario'); toggleMobileMenu();" class="block p-3 rounded-lg bg-amber-50 text-amber-800 font-medium text-sm">Сценарий демонстрации</a>
+                    <a href="#" onclick="showSection('demo-info'); toggleMobileMenu();" class="block p-3 rounded-lg bg-slate-100 font-medium text-sm">О системе (Demo)</a>
+                </div>
+            </div>
+
+            <!-- SCROLLABLE SECTIONS CONTAINER -->
+            <div id="mainContent" class="flex-1 overflow-y-auto p-4 sm:p-6 lg:p-8 space-y-6">
+
+                <!-- SECTION 1: PATIENT DASHBOARD -->
+                <section id="sec-dashboard" class="space-y-6">
+                    <div class="bg-gradient-to-r from-brand-600 to-turquoise-600 rounded-2xl p-6 text-white shadow-lg relative overflow-hidden">
+                        <div class="absolute -right-10 -bottom-10 w-48 h-48 bg-white/10 rounded-full blur-xl pointer-events-none"></div>
+                        <div class="flex flex-col md:flex-row justify-between items-start md:items-center relative z-10 gap-4">
+                            <div>
+                                <span class="bg-white/20 text-xs px-3 py-1 rounded-full font-medium inline-block mb-2">Онкологический скрининг • Актау</span>
+                                <h2 class="text-2xl sm:text-3xl font-bold">Здравствуйте, Сарсенбиғалиқызы Зере!</h2>
+                                <p class="text-brand-100 text-sm mt-1">Электронная очередь по системе QR-кодирования SmartQ.</p>
+                            </div>
+                            <div class="bg-white/10 backdrop-blur-md rounded-xl p-4 border border-white/20 min-w-[240px]">
+                                <div class="text-xs text-brand-100 uppercase font-semibold">Выбранное учреждение</div>
+                                <div id="currentClinicName" class="font-bold text-base mt-0.5">Мангистауский областной онкологический диспансер</div>
+                                <div id="currentClinicType" class="text-xs text-turquoise-100 mt-0.5">Государственный онкологический центр</div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Live Queue Grid -->
+                    <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+                        <div class="bg-white p-5 rounded-2xl border border-slate-200 shadow-sm flex flex-col justify-between">
+                            <div>
+                                <div class="flex justify-between items-center text-slate-500 text-xs font-semibold uppercase">
+                                    <span>Ваш талон</span>
+                                    <i class="fa-solid fa-ticket text-brand-500 text-base"></i>
+                                </div>
+                                <div class="text-4xl font-extrabold text-slate-900 mt-3" id="liveQueueNum">№8</div>
+                            </div>
+                            <div class="mt-4 pt-3 border-t border-slate-100 text-xs text-slate-500 flex justify-between">
+                                <span>Перед вами: <strong class="text-slate-800" id="liveAhead">7 человек</strong></span>
+                                <span class="text-brand-600 font-medium cursor-pointer" onclick="showSection('queue')">Подробнее</span>
+                            </div>
+                        </div>
+
+                        <div class="bg-white p-5 rounded-2xl border border-slate-200 shadow-sm flex flex-col justify-between">
+                            <div>
+                                <div class="flex justify-between items-center text-slate-500 text-xs font-semibold uppercase">
+                                    <span>Общая очередь</span>
+                                    <i class="fa-solid fa-users text-turquoise-500 text-base"></i>
+                                </div>
+                                <div class="text-4xl font-extrabold text-slate-900 mt-3" id="liveTotal">21</div>
+                            </div>
+                            <div class="mt-4 pt-3 border-t border-slate-100 text-xs text-slate-500 flex justify-between">
+                                <span>Всего ожидает в центре</span>
+                                <span class="text-emerald-600 font-semibold">Активно</span>
+                            </div>
+                        </div>
+
+                        <div class="bg-white p-5 rounded-2xl border border-slate-200 shadow-sm flex flex-col justify-between">
+                            <div>
+                                <div class="flex justify-between items-center text-slate-500 text-xs font-semibold uppercase">
+                                    <span>Ожидание</span>
+                                    <i class="fa-solid fa-clock text-amber-500 text-base"></i>
+                                </div>
+                                <div class="text-4xl font-extrabold text-slate-900 mt-3" id="liveWaitTime">32 мин</div>
+                            </div>
+                            <div class="mt-4 pt-3 border-t border-slate-100 text-xs text-slate-500">
+                                <span>Приём в ~<strong class="text-slate-800" id="liveTimeArrival">14:30</strong></span>
+                            </div>
+                        </div>
+
+                        <div class="bg-white p-5 rounded-2xl border border-slate-200 shadow-sm flex flex-col justify-between">
+                            <div>
+                                <div class="flex justify-between items-center text-slate-500 text-xs font-semibold uppercase">
+                                    <span>Статус загрузки</span>
+                                    <i class="fa-solid fa-signal text-emerald-500 text-base"></i>
+                                </div>
+                                <div class="mt-3 flex items-center space-x-2">
+                                    <span class="w-3 h-3 rounded-full bg-amber-500 animate-pulse"></span>
+                                    <span class="text-xl font-bold text-slate-900" id="liveStatusText">🟡 Средняя</span>
+                                </div>
+                            </div>
+                            <div class="mt-4 pt-3 border-t border-slate-100 text-xs text-slate-500">
+                                <span>Модель: <strong class="text-slate-800">λ=4, μ=6 (N=4)</strong></span>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Dynamic Notification Alert Box -->
+                    <div id="dynamicAlertBox" class="bg-amber-50 border-l-4 border-amber-500 p-4 rounded-xl flex items-start space-x-3 shadow-sm">
+                        <div class="text-amber-500 text-xl mt-0.5"><i class="fa-solid fa-bell"></i></div>
+                        <div class="flex-1">
+                            <h4 class="font-bold text-amber-900 text-sm">Внимание: очередь приближается</h4>
+                            <p class="text-amber-800 text-xs mt-0.5">Ваша очередь приближается. Пожалуйста, подойдите к кабинету скрининга примерно через 10 минут.</p>
+                        </div>
+                        <button onclick="dismissAlert()" class="text-amber-600 hover:text-amber-900 text-sm font-bold">&times;</button>
+                    </div>
+
+                    <!-- Optimal Time & Alternatives Grid -->
+                    <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+                        <div class="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm lg:col-span-1 flex flex-col justify-between">
+                            <div>
+                                <div class="flex items-center space-x-2 text-brand-600 font-bold text-sm mb-2">
+                                    <i class="fa-solid fa-sparkles"></i>
+                                    <span>SmartQ Рекомендует</span>
+                                </div>
+                                <h3 class="text-lg font-bold text-slate-900">Оптимальное время</h3>
+                                <p class="text-xs text-slate-500 mt-1">Анализ пиковых часов и нагрузки в Актау.</p>
+                                
+                                <div class="mt-4 bg-emerald-50 border border-emerald-200 rounded-xl p-4 text-center">
+                                    <span class="text-xs text-emerald-700 font-semibold uppercase">Лучшее время сегодня</span>
+                                    <div class="text-2xl font-extrabold text-emerald-900 mt-1">14:30</div>
+                                    <div class="text-xs text-emerald-700 mt-1">Прогнозируемое ожидание: <strong>12 минут</strong></div>
+                                </div>
+                            </div>
+                            <button onclick="selectOptimalTime()" class="mt-5 w-full bg-brand-600 hover:bg-brand-700 text-white font-medium py-2.5 px-4 rounded-xl text-sm transition shadow-sm">
+                                Выбрать это время
+                            </button>
+                        </div>
+
+                        <div class="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm lg:col-span-2 flex flex-col justify-between">
+                            <div>
+                                <div class="flex justify-between items-center mb-3">
+                                    <h3 class="text-lg font-bold text-slate-900">Перенаправление при перегрузке</h3>
+                                    <span class="bg-rose-100 text-rose-700 text-xs font-semibold px-2.5 py-1 rounded-full">Альтернатива найдена</span>
+                                </div>
+                                <p class="text-xs text-slate-500 mb-4">Если выбранный центр перегружен, система подбирает свободные клиники:</p>
+
+                                <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                                    <div class="border border-slate-200 hover:border-emerald-500 transition rounded-xl p-3 bg-slate-50 flex flex-col justify-between">
+                                        <div>
+                                            <div class="flex justify-between items-center">
+                                                <span class="font-bold text-sm text-slate-900">Диагностический центр «Вита»</span>
+                                                <span class="w-2.5 h-2.5 rounded-full bg-emerald-500"></span>
+                                            </div>
+                                            <p class="text-xs text-slate-500 mt-1">Частный онкоцентр • мкр. 4</p>
+                                        </div>
+                                        <div class="mt-3 flex justify-between items-center text-xs pt-2 border-t border-slate-200">
+                                            <span class="text-slate-600">Ожидание: ~15 мин</span>
+                                            <button onclick="switchClinic('Диагностический центр «Вита»', 15)" class="text-brand-600 font-bold hover:underline">Перейти &rarr;</button>
+                                        </div>
+                                    </div>
+                                    <div class="border border-slate-200 hover:border-amber-500 transition rounded-xl p-3 bg-slate-50 flex flex-col justify-between">
+                                        <div>
+                                            <div class="flex justify-between items-center">
+                                                <span class="font-bold text-sm text-slate-900">Поликлиника №2 Актау</span>
+                                                <span class="w-2.5 h-2.5 rounded-full bg-amber-500"></span>
+                                            </div>
+                                            <p class="text-xs text-slate-500 mt-1">Городская поликлиника • мкр. 28</p>
+                                        </div>
+                                        <div class="mt-3 flex justify-between items-center text-xs pt-2 border-t border-slate-200">
+                                            <span class="text-slate-600">Ожидание: ~22 мин</span>
+                                            <button onclick="switchClinic('Поликлиника №2 Актау', 22)" class="text-brand-600 font-bold hover:underline">Перейти &rarr;</button>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="mt-4 pt-3 border-t border-slate-100 flex justify-between items-center text-xs text-slate-500">
+                                <span>Интерактивная карта Актау</span>
+                                <button onclick="showSection('map')" class="text-brand-600 font-semibold hover:underline">Открыть карту &rarr;</button>
+                            </div>
+                        </div>
+                    </div>
+                </section>
+
+                <!-- SECTION 2: QUEUE DETAILS -->
+                <section id="sec-queue" class="space-y-6 hidden">
+                    <div class="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm">
+                        <h2 class="text-xl font-bold text-slate-900">Моя электронная очередь</h2>
+                        <p class="text-xs text-slate-500 mt-1">Детали текущего талона на онкологический скрининг.</p>
+
+                        <div class="mt-6 grid grid-cols-1 md:grid-cols-3 gap-6">
+                            <div class="bg-brand-50 border border-brand-100 rounded-2xl p-6 text-center flex flex-col justify-center items-center">
+                                <span class="text-xs font-bold text-brand-600 uppercase tracking-wider">Номер талона</span>
+                                <div class="text-6xl font-black text-brand-700 my-3" id="queueDetailNum">№8</div>
+                                <span class="bg-emerald-100 text-emerald-800 text-xs px-3 py-1 rounded-full font-semibold">Активен в системе</span>
+                            </div>
+                            <div class="md:col-span-2 space-y-4 flex flex-col justify-center">
+                                <div class="grid grid-cols-2 gap-4 bg-slate-50 p-4 rounded-xl border border-slate-200 text-sm">
+                                    <div>
+                                        <span class="text-slate-500 block text-xs">Медицинское учреждение:</span>
+                                        <strong class="text-slate-900" id="queueDetailClinic">Мангистауский областной онкологический диспансер</strong>
+                                    </div>
+                                    <div>
+                                        <span class="text-slate-500 block text-xs">Кабинет / Скрининг:</span>
+                                        <strong class="text-slate-900">Кабинет №4 • Раннее выявление</strong>
+                                    </div>
+                                    <div>
+                                        <span class="text-slate-500 block text-xs">Людей перед вами:</span>
+                                        <strong class="text-slate-900" id="queueDetailAhead">7 человек</strong>
+                                    </div>
+                                    <div>
+                                        <span class="text-slate-500 block text-xs">Примерное время приёма:</span>
+                                        <strong class="text-slate-900">14:30</strong>
+                                    </div>
+                                </div>
+                                <div class="flex space-x-3">
+                                    <button onclick="alert('Талон успешно обновлен в системе SmartQ!')" class="bg-brand-600 hover:bg-brand-700 text-white px-4 py-2 rounded-xl text-xs font-medium transition">Обновить статус</button>
+                                    <button onclick="showSection('map')" class="bg-slate-200 hover:bg-slate-300 text-slate-800 px-4 py-2 rounded-xl text-xs font-medium transition">Открыть карту</button>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </section>
+
+                <!-- SECTION 3: MAP OF AKTAU -->
+                <section id="sec-map" class="space-y-4 h-[calc(100vh-140px)] flex flex-col hidden">
+                    <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-2 bg-white p-4 rounded-2xl border border-slate-200 shadow-sm z-20">
+                        <div>
+                            <h2 class="text-lg font-bold text-slate-900">Интерактивная карта Актау • SmartQ</h2>
+                            <p class="text-xs text-slate-500">Государственные поликлиники и частные онкологические центры.</p>
+                        </div>
+                        <div class="flex flex-wrap items-center gap-2 text-xs">
+                            <select id="facilityTypeFilter" onchange="filterMapMarkers()" class="bg-slate-100 border border-slate-300 rounded-lg px-3 py-1.5 font-medium text-slate-700 focus:outline-none">
+                                <option value="all">Все учреждения</option>
+                                <option value="gov">Государственные поликлиники</option>
+                                <option value="private">Частные онкологические центры</option>
+                                <option value="diag">Диагностические центры</option>
+                            </select>
+                            <select id="screeningTypeFilter" onchange="filterMapMarkers()" class="bg-slate-100 border border-slate-300 rounded-lg px-3 py-1.5 font-medium text-slate-700 focus:outline-none">
+                                <option value="all">Все виды скрининга</option>
+                                <option value="mammography">Маммография</option>
+                                <option value="colorectal">Колоректальный скрининг</option>
+                                <option value="cervical">Рак шейки матки</option>
+                            </select>
+                        </div>
+                    </div>
+                    <div class="flex-1 bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden relative">
+                        <div id="aktayMap" class="w-full h-full"></div>
+                    </div>
+                </section>
+
+                <!-- SECTION 4: FORECAST -->
+                <section id="sec-forecast" class="space-y-6 hidden">
+                    <div class="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm">
+                        <div class="flex justify-between items-start">
+                            <div>
+                                <h2 class="text-xl font-bold text-slate-900">Прогнозирование очереди</h2>
+                                <p class="text-xs text-slate-500 mt-1">Анализ параметров λ (поступление), μ (обслуживание) и загруженности врачей N.</p>
+                            </div>
+                            <span class="bg-brand-50 text-brand-700 text-xs font-semibold px-3 py-1 rounded-full">Демо модель</span>
+                        </div>
+
+                        <div class="grid grid-cols-1 sm:grid-cols-3 gap-4 mt-6">
+                            <div class="bg-slate-50 p-4 rounded-xl border border-slate-200">
+                                <span class="text-xs text-slate-500">Сейчас в очереди</span>
+                                <div class="text-2xl font-bold text-slate-900 mt-1">8 человек</div>
+                                <span class="text-[10px] text-emerald-600 font-semibold">λ = 4 пац/час</span>
+                            </div>
+                            <div class="bg-slate-50 p-4 rounded-xl border border-slate-200">
+                                <span class="text-xs text-slate-500">Через 30 минут</span>
+                                <div class="text-2xl font-bold text-slate-900 mt-1">12 человек</div>
+                                <span class="text-[10px] text-amber-600 font-semibold">μ = 6 пац/час (N=4)</span>
+                            </div>
+                            <div class="bg-slate-50 p-4 rounded-xl border border-slate-200">
+                                <span class="text-xs text-slate-500">Через 1 час</span>
+                                <div class="text-2xl font-bold text-slate-900 mt-1">17 человек</div>
+                                <span class="text-[10px] text-rose-600 font-semibold">Пиковые часы</span>
+                            </div>
+                        </div>
+
+                        <div class="mt-6 p-4 bg-slate-50 rounded-xl border border-slate-200">
+                            <h3 class="text-sm font-bold text-slate-800 mb-3">График изменения очереди</h3>
+                            <div class="h-64">
+                                <canvas id="queueForecastChart"></canvas>
+                            </div>
+                        </div>
+
+                        <div class="mt-4 bg-blue-50 border border-blue-200 p-4 rounded-xl text-xs text-blue-900">
+                            <strong>Примечание:</strong> Время ожидания является прогнозом и может изменяться в зависимости от фактического потока пациентов и работы персонала в Актау.
+                        </div>
+                    </div>
+                </section>
+
+                <!-- SECTION 5: COMPARE CLINICS -->
+                <section id="sec-compare" class="space-y-6 hidden">
+                    <div class="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm">
+                        <h2 class="text-xl font-bold text-slate-900">Сравнение медицинских центров Актау</h2>
+                        <p class="text-xs text-slate-500 mt-1">Сопоставление загруженности и очередей.</p>
+
+                        <div class="overflow-x-auto mt-6">
+                            <table class="w-full text-left border-collapse text-sm">
+                                <thead>
+                                    <tr class="border-b border-slate-200 text-xs text-slate-500 uppercase">
+                                        <th class="py-3 px-4">Показатель</th>
+                                        <th class="py-3 px-4 font-bold text-brand-600">Центр A (Текущий)</th>
+                                        <th class="py-3 px-4 font-bold text-emerald-600">Центр B (Альтернатива)</th>
+                                    </tr>
+                                </thead>
+                                <tbody class="divide-y divide-slate-100">
+                                    <tr>
+                                        <td class="py-3 px-4 font-medium text-slate-700">Название</td>
+                                        <td class="py-3 px-4 font-bold text-slate-900">Областной онкодиспансер</td>
+                                        <td class="py-3 px-4 font-bold text-slate-900">Диагностический центр «Вита»</td>
+                                    </tr>
+                                    <tr>
+                                        <td class="py-3 px-4 font-medium text-slate-700">Очередь сейчас</td>
+                                        <td class="py-3 px-4">18 человек</td>
+                                        <td class="py-3 px-4 text-emerald-600 font-bold">7 человек</td>
+                                    </tr>
+                                    <tr>
+                                        <td class="py-3 px-4 font-medium text-slate-700">Ожидание</td>
+                                        <td class="py-3 px-4">42 мин</td>
+                                        <td class="py-3 px-4 text-emerald-600 font-bold">15 мин</td>
+                                    </tr>
+                                    <tr>
+                                        <td class="py-3 px-4 font-medium text-slate-700">Загрузка</td>
+                                        <td class="py-3 px-4 text-amber-600 font-semibold">87%</td>
+                                        <td class="py-3 px-4 text-emerald-600 font-bold">43%</td>
+                                    </tr>
+                                    <tr>
+                                        <td class="py-3 px-4 font-medium text-slate-700">Кабинеты</td>
+                                        <td class="py-3 px-4">4/5</td>
+                                        <td class="py-3 px-4">3/5</td>
+                                    </tr>
+                                    <tr>
+                                        <td class="py-3 px-4 font-medium text-slate-700">Прогноз</td>
+                                        <td class="py-3 px-4"><span class="bg-rose-100 text-rose-700 px-2 py-0.5 rounded text-xs font-bold">🔴 высокая</span></td>
+                                        <td class="py-3 px-4"><span class="bg-emerald-100 text-emerald-700 px-2 py-0.5 rounded text-xs font-bold">🟢 низкая</span></td>
+                                    </tr>
+                                </tbody>
+                            </table>
+                        </div>
+
+                        <div class="mt-6 bg-brand-50 border border-brand-200 p-4 rounded-xl flex items-start space-x-3">
+                            <div class="text-brand-600 text-xl"><i class="fa-solid fa-brain"></i></div>
+                            <div>
+                                <h4 class="font-bold text-brand-900 text-sm">SmartQ рекомендует: Центр B (Вита)</h4>
+                                <p class="text-brand-800 text-xs mt-0.5">Причина: «Меньшая текущая очередь и более низкая прогнозируемая загрузка».</p>
+                            </div>
+                        </div>
+                    </div>
+                </section>
+
+                <!-- SECTION 6: NOTIFICATIONS -->
+                <section id="sec-notifications" class="space-y-6 hidden">
+                    <div class="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm">
+                        <div class="flex justify-between items-center mb-4">
+                            <h2 class="text-xl font-bold text-slate-900">Уведомления SmartQ</h2>
+                            <span class="text-xs text-brand-600 font-semibold cursor-pointer">Отметить все как прочитанные</span>
+                        </div>
+
+                        <div class="space-y-3">
+                            <div class="p-4 rounded-xl border border-amber-200 bg-amber-50/50 flex items-start space-x-3">
+                                <div class="text-amber-500 text-lg mt-0.5"><i class="fa-solid fa-bell"></i></div>
+                                <div class="flex-1">
+                                    <div class="flex justify-between items-center">
+                                        <h4 class="font-bold text-slate-900 text-sm">Очередь приближается</h4>
+                                        <span class="text-[10px] text-slate-400">2 мин назад</span>
+                                    </div>
+                                    <p class="text-xs text-slate-600 mt-1">До вашего приёма примерно 20 минут.</p>
+                                </div>
+                            </div>
+                            <div class="p-4 rounded-xl border border-slate-200 bg-slate-50 flex items-start space-x-3">
+                                <div class="text-brand-500 text-lg mt-0.5"><i class="fa-solid fa-chart-line"></i></div>
+                                <div class="flex-1">
+                                    <div class="flex justify-between items-center">
+                                        <h4 class="font-bold text-slate-900 text-sm">Изменение очереди</h4>
+                                        <span class="text-[10px] text-slate-400">15 мин назад</span>
+                                    </div>
+                                    <p class="text-xs text-slate-600 mt-1">Количество пациентов в очереди увеличилось. Прогноз ожидания изменён с 18 до 25 минут.</p>
+                                </div>
+                            </div>
+                            <div class="p-4 rounded-xl border border-slate-200 bg-slate-50 flex items-start space-x-3">
+                                <div class="text-emerald-500 text-lg mt-0.5"><i class="fa-solid fa-calendar-check"></i></div>
+                                <div class="flex-1">
+                                    <div class="flex justify-between items-center">
+                                        <h4 class="font-bold text-slate-900 text-sm">Напоминание о скрининге</h4>
+                                        <span class="text-[10px] text-slate-400">Вчера</span>
+                                    </div>
+                                    <p class="text-xs text-slate-600 mt-1">Напоминание: вам необходимо пройти запланированный профилактический онкологический скрининг.</p>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </section>
+
+                <!-- SECTION 7: SCENARIO DEMO -->
+                <section id="sec-scenario" class="space-y-6 hidden">
+                    <div class="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm">
+                        <div class="flex justify-between items-center mb-4">
+                            <div>
+                                <h2 class="text-xl font-bold text-slate-900">Интерактивный сценарий демонстрации SmartQ</h2>
+                                <p class="text-xs text-slate-500 mt-1">Пошаговое прохождение 12 этапов работы прототипа для защиты проекта.</p>
+                            </div>
+                            <span class="bg-amber-100 text-amber-800 font-bold px-3 py-1 rounded-full text-xs" id="stepCounter">Шаг 1 из 12</span>
+                        </div>
+
+                        <div class="bg-brand-50 border border-brand-200 rounded-xl p-5 mb-6">
+                            <h3 id="scenarioTitle" class="text-base font-bold text-brand-900">Шаг 1: Пациент сканирует QR-код</h3>
+                            <p id="scenarioDesc" class="text-xs text-brand-800 mt-2 leading-relaxed">Пациент на входе в медицинское учреждение Актау сканирует QR-код на плакате системы SmartQ с помощью смартфона.</p>
+                        </div>
+
+                        <div class="flex justify-between items-center">
+                            <button onclick="prevStep()" class="bg-slate-200 hover:bg-slate-300 text-slate-700 px-4 py-2 rounded-xl text-xs font-semibold transition">&larr; Назад</button>
+                            <button onclick="nextStep()" class="bg-brand-600 hover:bg-brand-700 text-white px-5 py-2 rounded-xl text-xs font-semibold transition shadow-sm">Следующий шаг &rarr;</button>
+                        </div>
+                    </div>
+                </section>
+
+                <!-- SECTION 8: DEMO INFO / ABOUT -->
+                <section id="sec-demo-info" class="space-y-6 hidden">
+                    <div class="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm space-y-4">
+                        <h2 class="text-xl font-bold text-slate-900">О системе SmartQ и Демонстрационный режим</h2>
+                        <div class="bg-amber-50 border border-amber-200 p-4 rounded-xl text-xs text-amber-900">
+                            <strong>Demo Mode:</strong> В демонстрационной версии используются искусственные данные. Информация о загруженности, очередях и прогнозах не является реальными медицинскими данными.
+                        </div>
+                        <div class="grid grid-cols-1 md:grid-cols-2 gap-4 text-xs">
+                            <div class="bg-slate-50 p-4 rounded-xl border border-slate-200">
+                                <h3 class="font-bold text-slate-900 text-sm mb-2 text-emerald-700"><i class="fa-solid fa-check-circle"></i> Что работает сейчас</h3>
+                                <ul class="list-disc pl-4 space-y-1 text-slate-600">
+                                    <li>Интерактивная карта Актау</li>
+                                    <li>Демонстрационная очередь</li>
+                                    <li>Прогнозирование времени</li>
+                                    <li>Фильтрация учреждений</li>
+                                    <li>Рекомендации и уведомления</li>
+                                    <li>Dashboard пациента, клиники и города</li>
+                                </ul>
+                            </div>
+                            <div class="bg-slate-50 p-4 rounded-xl border border-slate-200">
+                                <h3 class="font-bold text-slate-900 text-sm mb-2 text-brand-600"><i class="fa-solid fa-rocket"></i> Что можно подключить в будущем</h3>
+                                <ul class="list-disc pl-4 space-y-1 text-slate-600">
+                                    <li>Реальные данные медицинских организаций РК</li>
+                                    <li>Интеграция с МИС (медицинскими информсистемами)</li>
+                                    <li>Реальные очереди и API карт</li>
+                                    <li>Полноценная ML-модель прогнозирования</li>
+                                    <li>Push-уведомления</li>
+                                </ul>
+                            </div>
+                        </div>
+                    </div>
+                </section>
+
+                <!-- SECTION 9: ADMIN CLINIC DASHBOARD -->
+                <section id="sec-admin-dash" class="space-y-6 hidden">
+                    <div class="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm">
+                        <div class="flex justify-between items-center">
+                            <div>
+                                <h2 class="text-xl font-bold text-slate-900">Dashboard медицинского центра</h2>
+                                <p class="text-xs text-slate-500 mt-1">Панель администратора Мангистауского областного онкологического диспансера.</p>
+                            </div>
+                            <span class="bg-brand-100 text-brand-800 px-3 py-1 rounded-full text-xs font-bold">Администратор клиники</span>
+                        </div>
+
+                        <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4 mt-6">
+                            <div class="bg-slate-50 p-4 rounded-xl border border-slate-200">
+                                <span class="text-xs text-slate-500">Пациентов сегодня</span>
+                                <div class="text-2xl font-bold text-slate-900 mt-1">1,250</div>
+                            </div>
+                            <div class="bg-slate-50 p-4 rounded-xl border border-slate-200">
+                                <span class="text-xs text-slate-500">Сейчас в очереди</span>
+                                <div class="text-2xl font-bold text-slate-900 mt-1">120</div>
+                            </div>
+                            <div class="bg-slate-50 p-4 rounded-xl border border-slate-200">
+                                <span class="text-xs text-slate-500">Среднее ожидание</span>
+                                <div class="text-2xl font-bold text-slate-900 mt-1">18 мин</div>
+                            </div>
+                            <div class="bg-slate-50 p-4 rounded-xl border border-slate-200">
+                                <span class="text-xs text-slate-500">Загрузка центра</span>
+                                <div class="text-2xl font-bold text-amber-600 mt-1">76%</div>
+                            </div>
+                            <div class="bg-slate-50 p-4 rounded-xl border border-slate-200">
+                                <span class="text-xs text-slate-500">Кабинеты</span>
+                                <div class="text-2xl font-bold text-slate-900 mt-1">5/6</div>
+                            </div>
+                        </div>
+
+                        <div class="mt-6 p-4 bg-slate-50 rounded-xl border border-slate-200">
+                            <h3 class="text-sm font-bold text-slate-800 mb-3">Поток пациентов по часам</h3>
+                            <div class="h-64">
+                                <canvas id="adminPatientsChart"></canvas>
+                            </div>
+                        </div>
+                    </div>
+                </section>
+
+                <!-- SECTION 10: ADMIN PATIENTS / PRIORITIES -->
+                <section id="sec-admin-patients" class="space-y-6 hidden">
+                    <div class="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm">
+                        <h2 class="text-xl font-bold text-slate-900">Управление приоритетами пациентов</h2>
+                        <p class="text-xs text-slate-500 mt-1">Установка медицинского приоритета (система не ставит диагноз самостоятельно).</p>
+
+                        <div class="overflow-x-auto mt-6">
+                            <table class="w-full text-left border-collapse text-sm">
+                                <thead>
+                                    <tr class="border-b border-slate-200 text-xs text-slate-500 uppercase">
+                                        <th class="py-3 px-4">Пациент ID</th>
+                                        <th class="py-3 px-4">ФИО</th>
+                                        <th class="py-3 px-4">Вид скрининга</th>
+                                        <th class="py-3 px-4">Приоритет</th>
+                                        <th class="py-3 px-4">Действие</th>
+                                    </tr>
+                                </thead>
+                                <tbody class="divide-y divide-slate-100 text-xs">
+                                    <tr>
+                                        <td class="py-3 px-4 font-mono font-bold">#9482</td>
+                                        <td class="py-3 px-4 font-bold text-slate-900">Сарсенбиғалиқызы З.</td>
+                                        <td class="py-3 px-4">Маммография</td>
+                                        <td class="py-3 px-4"><span class="bg-emerald-100 text-emerald-800 px-2.5 py-0.5 rounded font-bold">🟢 Обычный</span></td>
+                                        <td class="py-3 px-4"><button onclick="alert('Приоритет изменен медицинским работником')" class="text-brand-600 font-bold hover:underline">Изменить</button></td>
+                                    </tr>
+                                    <tr>
+                                        <td class="py-3 px-4 font-mono font-bold">#9483</td>
+                                        <td class="py-3 px-4 font-bold text-slate-900">Абишев К. М.</td>
+                                        <td class="py-3 px-4">Колоректальный скрининг</td>
+                                        <td class="py-3 px-4"><span class="bg-amber-100 text-amber-800 px-2.5 py-0.5 rounded font-bold">🟡 Повышенный</span></td>
+                                        <td class="py-3 px-4"><button onclick="alert('Приоритет изменен медицинским работником')" class="text-brand-600 font-bold hover:underline">Изменить</button></td>
+                                    </tr>
+                                    <tr>
+                                        <td class="py-3 px-4 font-mono font-bold">#9484</td>
+                                        <td class="py-3 px-4 font-bold text-slate-900">Каримова А. Б.</td>
+                                        <td class="py-3 px-4">Рак шейки матки</td>
+                                        <td class="py-3 px-4"><span class="bg-rose-100 text-rose-800 px-2.5 py-0.5 rounded font-bold">🔴 Высокий</span></td>
+                                        <td class="py-3 px-4"><button onclick="alert('Приоритет изменен медицинским работником')" class="text-brand-600 font-bold hover:underline">Изменить</button></td>
+                                    </tr>
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </section>
+
+                <!-- SECTION 11: CITY DASHBOARD -->
+                <section id="sec-city-dash" class="space-y-6 hidden">
+                    <div class="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm space-y-4">
+                        <div class="flex justify-between items-center">
+                            <div>
+                                <h2 class="text-xl font-bold text-slate-900">Мониторинг медицинских учреждений Актау</h2>
+                                <p class="text-xs text-slate-500 mt-1">Общая картина загруженности онкологических центров и поликлиник города.</p>
+                            </div>
+                            <div class="flex space-x-2 text-xs">
+                                <span class="bg-emerald-100 text-emerald-800 px-3 py-1 rounded-full font-bold">🟢 4 низкая</span>
+                                <span class="bg-amber-100 text-amber-800 px-3 py-1 rounded-full font-bold">🟡 6 средняя</span>
+                                <span class="bg-rose-100 text-rose-800 px-3 py-1 rounded-full font-bold">🔴 2 высокая</span>
+                            </div>
+                        </div>
+
+                        <div class="h-96 w-full rounded-xl overflow-hidden border border-slate-200 relative">
+                            <div id="cityOverviewMap" class="w-full h-full"></div>
+                        </div>
+                    </div>
+                </section>
+
+                <!-- SECTION 12: CITY RECS -->
+                <section id="sec-city-recs" class="space-y-6 hidden">
+                    <div class="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm space-y-4">
+                        <h2 class="text-xl font-bold text-slate-900">Интеллектуальные рекомендации SmartQ для Минздрава / Города</h2>
+                        <p class="text-xs text-slate-500 mt-1">Автоматическое перераспределение пациентских потоков в Актау.</p>
+
+                        <div class="space-y-3">
+                            <div class="p-4 bg-rose-50 border border-rose-200 rounded-xl flex items-start space-x-3">
+                                <div class="text-rose-600 text-xl"><i class="fa-solid fa-triangle-exclamation"></i></div>
+                                <div class="flex-1">
+                                    <h4 class="font-bold text-rose-900 text-sm">Перегрузка в Областном онкодиспансере</h4>
+                                    <p class="text-rose-800 text-xs mt-1">Онкодиспансер имеет загрузку более 87%. Рекомендуется перераспределить часть потока пациентов в Поликлинику №2 или частный центр «Вита».</p>
+                                    <button onclick="alert('Рекомендация передана в диспетчерскую службу Актау!')" class="mt-3 bg-rose-600 text-white px-3 py-1.5 rounded-lg text-xs font-medium hover:bg-rose-700 transition">Применить перераспределение</button>
+                                </div>
+                            </div>
+                            <div class="p-4 bg-emerald-50 border border-emerald-200 rounded-xl flex items-start space-x-3">
+                                <div class="text-emerald-600 text-xl"><i class="fa-solid fa-circle-check"></i></div>
+                                <div class="flex-1">
+                                    <h4 class="font-bold text-emerald-900 text-sm">Оптимальные часы потока</h4>
+                                    <p class="text-emerald-800 text-xs mt-1">В период 14:00–16:00 прогнозируется стабильное снижение нагрузки в центрах Актау.</p>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </section>
+
+            </div>
+        </main>
+    </div>
+
+    <!-- Leaflet JS -->
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>
+
+    <script>
+        let currentRole = 'patient';
+        let currentQueue = 8;
+        let totalQueue = 21;
+        let waitTime = 32;
+
+        const clinicsData = [
+            {
+                name: "Областной онкологический центр",
+                type: "gov",
+                typeText: "Государственный онкологический центр",
+                lat:43.633143257424166,  
+                lng:  51.166833415444046,
+                queue: 18,
+                wait: 42,
+                load: 87,
+                cabinets: "4/5",
+                forecast: "🔴 высокая",
+                recTime: "16:00",
+                screening: ["mammography", "colorectal", "cervical"]
+            },
+            {
+                name: "Актау городская поликлинка №1",
+                type: "private",
+                typeText: "Городская поликлиника",
+                lat: 43.645130667293465, 
+                lng:  51.15906573484947,
+                queue: 7,
+                wait: 15,
+                load: 43,
+                cabinets: "3/5",
+                forecast: "🟢 низкая",
+                recTime: "14:30",
+                screening: ["mammography", "cervical"]
+            },
+            {
+                name:"Медицинский центр «Нейрон",
+                type: "gov",
+                typeText: "Государственная поликлиника",
+                lat: 43.65252302989481,
+                lng:  51.145534246214055,
+                queue: 14,
+                wait: 30,
+                load: 75,
+                cabinets: "5/6",
+                forecast: "🟡 средняя",
+                recTime: "15:00",
+                screening: ["colorectal", "cervical"]
+            },
+            {
+                name: "Поликлиника №2 Актау",
+                type: "gov",
+                typeText: "Государственная поликлиника",
+                lat: 43.6600,
+                lng: 51.1600,
+                queue: 10,
+                wait: 22,
+                load: 58,
+                cabinets: "4/4",
+                forecast: "🟡 средняя",
+                recTime: "14:00",
+                screening: ["mammography", "colorectal"]
+            },
+            {
+                name: "Поликлинка SofieMed»",
+                type: "diag",
+                typeText: "Диагностический центр",
+                lat: 43.637009136590564,
+                lng:  51.1794978116518,
+                queue: 5,
+                wait: 12,
+                load: 35,
+                cabinets: "2/3",
+                forecast: "🟢 низкая",
+                recTime: "13:30",
+                screening: ["mammography", "cervical", "colorectal"]
+            }
+        ];
+
+        let map = null;
+        let cityMap = null;
+        let markers = [];
+        let cityMarkers = [];
+        let forecastChartInstance = null;
+        let adminChartInstance = null;
+
+        function showSection(sectionId) {
+            const sections = [
+                'sec-dashboard', 'sec-queue', 'sec-map', 'sec-forecast', 
+                'sec-compare', 'sec-notifications', 'sec-scenario', 'sec-demo-info',
+                'sec-admin-dash', 'sec-admin-patients', 'sec-city-dash', 'sec-city-recs'
+            ];
+            sections.forEach(id => {
+                const el = document.getElementById(id);
+                if (el) el.classList.add('hidden');
+            });
+            const target = document.getElementById('sec-' + sectionId);
+            if (target) {
+                target.classList.remove('hidden');
+                if (sectionId === 'map' && map) {
+                    setTimeout(() => { map.invalidateSize(); }, 200);
+                }
+                if (sectionId === 'city-dash' && cityMap) {
+                    setTimeout(() => { cityMap.invalidateSize(); }, 200);
+                }
+            }
+        }
+
+        function switchRole(role) {
+            currentRole = role;
+            const btnP = document.getElementById('btnRolePatient');
+            const btnA = document.getElementById('btnRoleAdmin');
+            const btnC = document.getElementById('btnRoleCity');
+
+            const navP = document.getElementById('navPatient');
+            const navA = document.getElementById('navAdmin');
+            const navC = document.getElementById('navCity');
+
+            btnP.className = "bg-transparent hover:bg-white/20 px-3 py-1 rounded font-medium transition";
+            btnA.className = "bg-transparent hover:bg-white/20 px-3 py-1 rounded font-medium transition";
+            btnC.className = "bg-transparent hover:bg-white/20 px-3 py-1 rounded font-medium transition";
+
+            navP.classList.add('hidden');
+            navA.classList.add('hidden');
+            navC.classList.add('hidden');
+
+            if (role === 'patient') {
+                btnP.className = "bg-white/25 hover:bg-white/30 px-3 py-1 rounded font-medium transition";
+                navP.classList.remove('hidden');
+                showSection('dashboard');
+            } else if (role === 'admin') {
+                btnA.className = "bg-white/25 hover:bg-white/30 px-3 py-1 rounded font-medium transition";
+                navA.classList.remove('hidden');
+                showSection('admin-dash');
+                initAdminChart();
+            } else if (role === 'city') {
+                btnC.className = "bg-white/25 hover:bg-white/30 px-3 py-1 rounded font-medium transition";
+                navC.classList.remove('hidden');
+                showSection('city-dash');
+                setTimeout(() => { if (cityMap) cityMap.invalidateSize(); }, 200);
+            }
+        }
+
+        function toggleMobileMenu() {
+            document.getElementById('mobileMenu').classList.toggle('hidden');
+        }
+
+        function dismissAlert() {
+            document.getElementById('dynamicAlertBox').style.display = 'none';
+        }
+
+        function selectOptimalTime() {
+            alert('Вы успешно выбрали оптимальное время посещения: 14:30. Талон обновлен!');
+        }
+
+        function switchClinic(name, waitMins) {
+            document.getElementById('currentClinicName').innerText = name;
+            document.getElementById('queueDetailClinic').innerText = name;
+            document.getElementById('liveWaitTime').innerText = waitMins + ' мин';
+            alert(`Вы успешно перенаправлены в центр: ${name}! Ожидание: ~${waitMins} минут.`);
+        }
+
+        function initMaps() {
+            if (!map) {
+                map = L.map('aktayMap').setView([43.6480, 51.1400], 13);
+                L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+                    maxZoom: 19,
+                    attribution: '&copy; OpenStreetMap contributors'
+                }).addTo(map);
+                renderMarkers();
+            }
+
+            if (!cityMap) {
+                cityMap = L.map('cityOverviewMap').setView([43.6480, 51.1400], 13);
+                L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+                    maxZoom: 19,
+                    attribution: '&copy; OpenStreetMap contributors'
+                }).addTo(cityMap);
+                renderCityMarkers();
+            }
+        }
+
+        function renderMarkers() {
+            markers.forEach(m => map.removeLayer(m));
+            markers = [];
+
+            const typeFilter = document.getElementById('facilityTypeFilter').value;
+            const screeningFilter = document.getElementById('screeningTypeFilter').value;
+
+            clinicsData.forEach(clinic => {
+                if (typeFilter !== 'all' && clinic.type !== typeFilter) return;
+                if (screeningFilter !== 'all' && !clinic.screening.includes(screeningFilter)) return;
+
+                let color = clinic.load > 80 ? '#ef4444' : clinic.load > 50 ? '#f59e0b' : '#10b981';
+                
+                let htmlIcon = L.divIcon({
+                    className: 'custom-map-marker',
+                    html: `<div style="background-color: ${color}; width: 24px; height: 24px; border-radius: 50%; border: 2px solid white; box-shadow: 0 2px 5px rgba(0,0,0,0.3); display: flex; align-items: center; justify-content: center; color: white; font-size: 10px; font-weight: bold;"><i class="fa-solid fa-hospital"></i></div>`,
+                    iconSize: [24, 24]
+                });
+
+                let marker = L.marker([clinic.lat, clinic.lng], { icon: htmlIcon }).addTo(map);
+                marker.bindPopup(`
+                    <div style="font-family: 'Inter', sans-serif; font-size: 12px; min-width: 200px;">
+                        <strong style="font-size: 14px; color: #0f172a;">${clinic.name}</strong>
+                        <p style="color: #64748b; margin: 2px 0 6px 0;">${clinic.typeText}</p>
+                        <div style="background: #f8fafc; padding: 6px; border-radius: 6px; margin-bottom: 6px;">
+                            <div>Сейчас в очереди: <strong>${clinic.queue} чел.</strong></div>
+                            <div>Среднее ожидание: <strong>${clinic.wait} мин</strong></div>
+                            <div>Загрузка: <strong style="color: ${color};">${clinic.load}%</strong></div>
+                            <div>Кабинеты: <strong>${clinic.cabinets}</strong></div>
+                        </div>
+                        <button onclick="switchClinic('${clinic.name}', ${clinic.wait})" style="width: 100%; background: #0066cc; color: white; border: none; padding: 6px; border-radius: 6px; font-weight: 600; cursor: pointer;">Выбрать центр</button>
+                    </div>
+                `);
+                markers.push(marker);
+            });
+        }
+
+        function filterMapMarkers() {
+            renderMarkers();
+        }
+
+        function renderCityMarkers() {
+            cityMarkers.forEach(m => cityMap.removeLayer(m));
+            cityMarkers = [];
+
+            clinicsData.forEach(clinic => {
+                let color = clinic.load > 80 ? '#ef4444' : clinic.load > 50 ? '#f59e0b' : '#10b981';
+                let htmlIcon = L.divIcon({
+                    className: 'custom-city-marker',
+                    html: `<div style="background-color: ${color}; width: 26px; height: 26px; border-radius: 50%; border: 2px solid white; box-shadow: 0 2px 6px rgba(0,0,0,0.3); display: flex; align-items: center; justify-content: center; color: white; font-size: 10px; font-weight: bold;"><i class="fa-solid fa-building-shield"></i></div>`,
+                    iconSize: [26, 26]
+                });
+
+                let marker = L.marker([clinic.lat, clinic.lng], { icon: htmlIcon }).addTo(cityMap);
+                marker.bindPopup(`<strong>${clinic.name}</strong><br>Загрузка: ${clinic.load}% (${clinic.forecast})`);
+                cityMarkers.push(marker);
+            });
+        }
+
+        function initCharts() {
+            const ctx = document.getElementById('queueForecastChart').getContext('2d');
+            forecastChartInstance = new Chart(ctx, {
+                type: 'line',
+                data: {
+                    labels: ['09:00', '10:00', '11:00', '12:00', '13:00', '14:00', '15:00', '16:00', '17:00'],
+                    datasets: [{
+                        label: 'Прогноз длины очереди (человек)',
+                        data: [5, 12, 18, 22, 15, 8, 11, 14, 9],
+                        borderColor: '#0066cc',
+                        backgroundColor: 'rgba(0, 102, 204, 0.1)',
+                        fill: true,
+                        tension: 0.3,
+                        borderWidth: 3
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: { legend: { display: false } },
+                    scales: { y: { beginAtZero: true } }
+                }
+            });
+        }
+
+        function initAdminChart() {
+            if (adminChartInstance) return;
+            const ctx = document.getElementById('adminPatientsChart').getContext('2d');
+            adminChartInstance = new Chart(ctx, {
+                type: 'bar',
+                data: {
+                    labels: ['09:00', '10:00', '11:00', '12:00', '13:00', '14:00', '15:00', '16:00'],
+                    datasets: [{
+                        label: 'Пациенты',
+                        data: [45, 120, 190, 210, 140, 160, 180, 90],
+                        backgroundColor: '#00b4d8',
+                        borderRadius: 6
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: { legend: { display: false } },
+                    scales: { y: { beginAtZero: true } }
+                }
+            });
+        }
+
+        let currentStepNum = 1;
+        const scenarioSteps = [
+            { title: "Шаг 1: Пациент сканирует QR-код", desc: "Пациент на входе в медицинское учреждение Актау сканирует QR-код на плакате системы SmartQ с помощью смартфона." },
+            { title: "Шаг 2: Попадает в электронную очередь", desc: "Система автоматически регистрирует пациента в цифровом контуре онкологического скрининга." },
+            { title: "Шаг 3: SmartQ определяет его позицию", desc: "Пациент видит свой персональный талон (например, №8) и количество людей перед собой." },
+            { title: "Шаг 4: Система рассчитывает прогноз времени", desc: "На основе параметров λ и μ SmartQ вычисляет точное время ожидания (например, 32 минуты)." },
+            { title: "Шаг 5: Система прогнозирует изменение очереди", desc: "Динамический алгоритм в реальном времени пересчитывает очередь при изменении потока." },
+            { title: "Шаг 6: Пациент открывает карту Актау", desc: "Интерактивная карта города отображает все поликлиники и частные диагностические центры." },
+            { title: "Шаг 7: Видит поликлиники и частные центры", desc: "Удобная фильтрация по типу учреждений и виду скрининга (маммография, колоректальный и др.)." },
+            { title: "Шаг 8: Видит загруженность каждого учреждения", desc: "Цветовая индикация мгновенно показывает уровень загрузки." },
+            { title: "Шаг 9: Предложение альтернативы", desc: "Если выбранный центр перегружен, SmartQ предлагает менее загруженный центр в Актау." },
+            { title: "Шаг 10: Уведомление о приближении очереди", desc: "Пациент получает пуш-уведомление за 10-20 минут до своего приёма." },
+            { title: "Шаг 11: Медицинский центр видит свою загрузку", desc: "Администратор клиники управляет потоком пациентов и приоритетами на отдельном dashboard." },
+            { title: "Шаг 12: Городской администратор и Минздрав", desc: "Городской мониторинг Актау позволяет перераспределять нагрузку между больницами на макроуровне." }
+        ];
+
+        function nextStep() {
+            if (currentStepNum < scenarioSteps.length) {
+                currentStepNum++;
+                updateScenarioView();
+            }
+        }
+
+        function prevStep() {
+            if (currentStepNum > 1) {
+                currentStepNum--;
+                updateScenarioView();
+            }
+        }
+
+        function updateScenarioView() {
+            document.getElementById('stepCounter').innerText = `Шаг ${currentStepNum} из 12`;
+            document.getElementById('scenarioTitle').innerText = scenarioSteps[currentStepNum - 1].title;
+            document.getElementById('scenarioDesc').innerText = scenarioSteps[currentStepNum - 1].desc;
+        }
+
+        setInterval(() => {
+            if (totalQueue > 15) {
+                totalQueue -= 1;
+                if (currentQueue > 1) currentQueue -= 1;
+                waitTime = Math.max(10, waitTime - 2);
+
+                document.getElementById('liveQueueNum').innerText = '№' + currentQueue;
+                document.getElementById('liveAhead').innerText = (currentQueue - 1) + ' человек';
+                document.getElementById('liveTotal').innerText = totalQueue;
+                document.getElementById('liveWaitTime').innerText = waitTime + ' мин';
+                
+                document.getElementById('queueDetailNum').innerText = '№' + currentQueue;
+                document.getElementById('queueDetailAhead').innerText = (currentQueue - 1) + ' человек';
+            }
+        }, 12000);
+
+        window.addEventListener('DOMContentLoaded', () => {
+            initMaps();
+            initCharts();
+        });
+    </script>
+</body>
+</html>
